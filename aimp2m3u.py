@@ -5,6 +5,14 @@ import os
 
 
 class PlaylistSong:
+    """Represents an individual song within a playlist
+
+    Attributes:
+        path: Path to the song
+        song_name: Name of the song
+        artist: Artist of the song
+        album: Album of the song
+    """
     path: str
     song_name: str
     artist: str
@@ -33,6 +41,37 @@ class M3uPlaylist:
         paths = [song.path for song in self.songs]
 
         return "\n".join(paths)
+
+    def find_common_path(self) -> str:
+        """Finds the base path common amongst all song paths
+
+        Returns:
+            str: The resulting common path
+        """
+        # Common parts between all paths
+        common_paths = []
+        song_paths = [Path(song.path) for song in self.songs]
+        # Minimum number of parts (max possible common length)
+        min_parts = min([len(song_path.parts) for song_path in song_paths])
+
+        for i in range(min_parts):
+            # Same part as last iteration?
+            same_part = True
+            # The last common part found
+            last_part = None
+            # Cycle through song paths
+            for song_path in song_paths:
+                part = song_path.parts[i]
+                if last_part is not None \
+                        and part != last_part:
+                    same_part = False
+                    break
+                last_part = part
+            if same_part:
+                common_paths.append(last_part)
+            last_part = None
+
+        return os.path.join(*common_paths)
 
 
 class AimpPlaylist:
@@ -105,6 +144,7 @@ def parse_sections(file_data: str) -> M3uPlaylist:
     lines = file_data.splitlines()
     source_playlist = AimpPlaylist.from_lines(lines)
     dest_playlist = source_playlist.to_m3u()
+    dest_playlist.find_common_path()
 
     return dest_playlist
 
@@ -125,6 +165,7 @@ def main(args: argparse.ArgumentParser):
     final_path = output_dir.joinpath(playlist.filename)
 
     # print(str(playlist))
+    # print(str(final_path))
     # with open(final_path, 'w') as f:
     #     f.write(playlist.to_str())
 
