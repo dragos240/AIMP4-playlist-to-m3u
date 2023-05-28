@@ -30,8 +30,16 @@ class PlaylistSong:
 
 
 class M3uPlaylist:
+    """Represents an m3u playlist
+
+    Attributes:
+        filename: Filename of the playlist
+        songs: All `PlaylistSong`s in the playlist
+        common_path: Common path amongst all song paths
+    """
     filename: str
     songs: List[PlaylistSong]
+    common_path: str
 
     def __init__(self, name: str, songs: List[PlaylistSong]):
         self.filename = name + ".m3u"
@@ -71,10 +79,35 @@ class M3uPlaylist:
                 common_paths.append(last_part)
             last_part = None
 
-        return os.path.join(*common_paths)
+        # Needs "\\" for later substitution
+        return os.path.join(*common_paths) + "\\"
+
+    def convert_to_relative(self):
+        """
+        Converts internal song paths to relative paths
+        """
+        self.common_path = self.find_common_path()
+
+        for song in self.songs:
+            song_path = song.path.replace("..\\", "")
+            song_path = song_path.replace(self.common_path, "")
+            song.path = song_path
+
+    def paths_to_posix(self):
+        """
+        Convert song paths to POSIX format if in Windows format
+        """
+        for song in self.songs:
+            song.path = song.path.replace("\\", '/')
 
 
 class AimpPlaylist:
+    """Represents an AIMP4 playlist
+
+    Attributes:
+        summary: Metadata info
+        songs: List of `PlaylistSong`s in the playlist
+    """
     summary: Dict[str, Any]
     songs: List[PlaylistSong]
 
@@ -85,6 +118,15 @@ class AimpPlaylist:
     @staticmethod
     def find_song_path(search_path: str,
                        filename: str) -> Path:
+        """Finds the song within the specified search path
+
+        Args:
+            search_path (str): The search path to use
+            filename (str): Name of the file to find
+
+        Raises:
+            FileNotFoundError: If the file can't be found
+        """
         for dirpath, _, filenames in os.walk(search_path):
             for _filename in filenames:
                 if filename == _filename:
@@ -97,6 +139,14 @@ class AimpPlaylist:
 
     @classmethod
     def from_lines(cls, lines: List[str]) -> 'AimpPlaylist':
+        """Create a new AimpPlaylist from of List of str
+
+        Args:
+            lines (List[str]): The lines to create a playlist from
+
+        Returns:
+            AimpPlaylist: The resulting AimpPlaylist
+        """
         summary = {}
         songs = []
         current_root_path: Optional[str] = None
@@ -141,17 +191,29 @@ class AimpPlaylist:
 
 
 def parse_sections(file_data: str) -> M3uPlaylist:
+    """Creates a new M3uPlaylist from a string
+
+    Args:
+        file_data (str): The str data to parse from
+
+    Returns:
+        M3uPlaylist: The resulting playlist
+    """
     lines = file_data.splitlines()
     source_playlist = AimpPlaylist.from_lines(lines)
     dest_playlist = source_playlist.to_m3u()
-    dest_playlist.find_common_path()
+    dest_playlist.convert_to_relative()
+    dest_playlist.paths_to_posix()
 
     return dest_playlist
 
 
 def main(args: argparse.ArgumentParser):
     source_playlist: str = args.playlist
-    output_dir: Path = Path(args.output)
+    output_dir: Optional[Path] = args.output
+
+    if output_dir is not None:
+        output_dir = Path(output_dir)
 
     if not source_playlist.endswith(".aimppl4"):
         print("Not a supported playlist file (must be a aimppl4 file)")
@@ -161,11 +223,20 @@ def main(args: argparse.ArgumentParser):
         source_playlist_data = f.read().decode("utf-16")
 
     playlist = parse_sections(source_playlist_data)
+    common_path = Path(playlist.common_path)
+
+    if output_dir is None:
+        output_dir = Path(os.path.join(common_path, "Playlists"))
 
     final_path = output_dir.joinpath(playlist.filename)
 
-    # print(str(playlist))
-    # print(str(final_path))
+    print(output_dir)
+    if not output_dir.exists():
+        print(f"Output dir '{output_dir}' does not exist, creating")
+        # os.mkdir(output_dir)
+
+    print(str(playlist))
+    print(str(final_path))
     # with open(final_path, 'w') as f:
     #     f.write(playlist.to_str())
 
@@ -176,7 +247,7 @@ if __name__ == '__main__':
                         help="The AIMP4 playlist to convert")
     parser.add_argument("-o", "--output",
                         help="The output dir",
-                        default=".")
+                        default=None)
 
     args = parser.parse_args()
     main(args)
