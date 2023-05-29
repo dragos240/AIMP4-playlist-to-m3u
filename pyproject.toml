@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aimp2m3u"
+version = "0.1.0"
+authors = [
+    {"name" = "Nat Osaka"}
+]
+requires-python = ">=3.0"
+license = {text = "GPLv3"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+dynamic = ["readme"]
+
+[project.urls]
+"Homepage" = "https://github.com/dragos240/AIMP4-playlist-to-m3u"
+"Source" = "https://github.com/dragos240/AIMP4-playlist-to-m3u"
+
+[project.scripts]
+aimp2m3u = "aimp2m3u.__main__:main"
+
+[tool.setuptools.dynamic]
+readme = {file = ["README.md"]}

@@ -7,7 +7,16 @@ import sys
 from .aimp import AimpPlaylist
 
 
-def main(args: argparse.ArgumentParser):
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("playlist",
+                        help="The AIMP4 playlist to convert")
+    parser.add_argument("-o", "--output",
+                        help="The output dir",
+                        default=None)
+
+    args = parser.parse_args()
+
     source_playlist_path: str = args.playlist
     output_dir: Optional[Path] = args.output
 
@@ -47,15 +56,3 @@ def main(args: argparse.ArgumentParser):
         print(f"Couldn't write to {final_path}")
         raise e
     print("Done conversion!")
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument("playlist",
-                        help="The AIMP4 playlist to convert")
-    parser.add_argument("-o", "--output",
-                        help="The output dir",
-                        default=None)
-
-    args = parser.parse_args()
-    main(args)
