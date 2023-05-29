@@ -2,6 +2,7 @@ import argparse
 from typing import Any, Dict, List, Optional
 from pathlib import Path
 import os
+import sys
 
 
 class PlaylistSong:
@@ -100,6 +101,10 @@ class M3uPlaylist:
         for song in self.songs:
             song.path = song.path.replace("\\", '/')
 
+    def sanitize_paths(self):
+        self.convert_to_relative()
+        self.paths_to_posix()
+
 
 class AimpPlaylist:
     """Represents an AIMP4 playlist
@@ -178,7 +183,6 @@ class AimpPlaylist:
 
                     file_path = cls.find_song_path(current_root_path,
                                                    line_path.name)
-                    # print(current_root_path, line_path.name)
 
                     song = PlaylistSong(
                         str(file_path), song_name, artist, album)
@@ -186,43 +190,37 @@ class AimpPlaylist:
 
         return cls(summary, songs)
 
+    @classmethod
+    def from_filename(cls, filename: str) -> 'AimpPlaylist':
+        lines = []
+        try:
+            with open(filename, "r", encoding="utf-16") as f:
+                lines = f.read().splitlines()
+        except FileNotFoundError as e:
+            print("Playlist file doesn't exist")
+            raise e
+
+        return cls.from_lines(lines)
+
     def to_m3u(self) -> M3uPlaylist:
         return M3uPlaylist(self.summary["Name"], self.songs)
 
 
-def parse_sections(file_data: str) -> M3uPlaylist:
-    """Creates a new M3uPlaylist from a string
-
-    Args:
-        file_data (str): The str data to parse from
-
-    Returns:
-        M3uPlaylist: The resulting playlist
-    """
-    lines = file_data.splitlines()
-    source_playlist = AimpPlaylist.from_lines(lines)
-    dest_playlist = source_playlist.to_m3u()
-    dest_playlist.convert_to_relative()
-    dest_playlist.paths_to_posix()
-
-    return dest_playlist
-
-
 def main(args: argparse.ArgumentParser):
-    source_playlist: str = args.playlist
+    source_playlist_path: str = args.playlist
     output_dir: Optional[Path] = args.output
 
     if output_dir is not None:
         output_dir = Path(output_dir)
 
-    if not source_playlist.endswith(".aimppl4"):
+    if not source_playlist_path.endswith(".aimppl4"):
         print("Not a supported playlist file (must be a aimppl4 file)")
         return
 
-    with open(source_playlist, "rb") as f:
-        source_playlist_data = f.read().decode("utf-16")
+    aimp_playlist = AimpPlaylist.from_filename(source_playlist_path)
+    playlist = aimp_playlist.to_m3u()
+    playlist.sanitize_paths()
 
-    playlist = parse_sections(source_playlist_data)
     common_path = Path(playlist.common_path)
 
     if output_dir is None:
@@ -230,15 +228,24 @@ def main(args: argparse.ArgumentParser):
 
     final_path = output_dir.joinpath(playlist.filename)
 
-    print(output_dir)
-    if not output_dir.exists():
-        print(f"Output dir '{output_dir}' does not exist, creating")
-        # os.mkdir(output_dir)
+    # Ensure output dir exists
+    os.makedirs(output_dir, exist_ok=True)
 
-    print(str(playlist))
-    print(str(final_path))
-    # with open(final_path, 'w') as f:
-    #     f.write(playlist.to_str())
+    print(f"Proceed with playlist creation at {final_path}? (Y/n) ",
+          end="")
+    sys.stdout.flush()  # Need this since there was no '\n' at end of print
+    if input().rstrip().lower() not in ("y", ""):
+        print("Bailing...")
+        return
+    print("Proceeding with creation...")
+
+    try:
+        with open(final_path, "w") as f:
+            f.write(str(playlist))
+    except IOError as e:
+        print(f"Couldn't write to {final_path}")
+        raise e
+    print("Done conversion!")
 
 
 if __name__ == '__main__':
